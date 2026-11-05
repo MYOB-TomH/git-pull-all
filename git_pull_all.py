@@ -53,6 +53,7 @@ import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from threading import Event, Lock, local
 from typing import List, Optional
 
@@ -809,6 +810,17 @@ def compute_exit_code(errors: List[GitError], results: List[RepoResult]) -> int:
     return 1
 
 
+def format_run_timestamp(moment: Optional[datetime] = None) -> str:
+    """Local clock time as HH:MM AM/PM, DD/MM/YY (hours 01–12, zero-padded)."""
+    moment = moment or datetime.now()
+    hour = moment.hour % 12 or 12
+    meridiem = "AM" if moment.hour < 12 else "PM"
+    return (
+        f"{hour:02d}:{moment.minute:02d} {meridiem}, "
+        f"{moment.day:02d}/{moment.month:02d}/{moment.year % 100:02d}"
+    )
+
+
 def print_summary(
     errors: List[GitError],
     results: List[RepoResult],
@@ -865,16 +877,26 @@ def print_summary(
         for line in updated_summary:
             print(line)
 
+    stamp = format_run_timestamp()
     if errors:
-        print(f"\n{Colors.RED}{Colors.BOLD}Encountered {len(errors)} error(s):{Colors.END}\n")
+        print(
+            f"\n{Colors.RED}{Colors.BOLD}Encountered {len(errors)} error(s) "
+            f"({stamp}):{Colors.END}\n"
+        )
         for error in errors:
             repo_label = os.path.basename(error.repo_path)
             print(f"{Colors.RED}✗ {repo_label} [{error.branch}] - {error.error_type}:{Colors.END}")
             print(f"  {error.message}\n")
     elif dry_run:
-        print(f"{Colors.GREEN}{Colors.BOLD}✓ Dry-run completed — no changes were made{Colors.END}")
+        print(
+            f"{Colors.GREEN}{Colors.BOLD}✓ Dry-run completed — no changes were made "
+            f"({stamp}){Colors.END}"
+        )
     else:
-        print(f"{Colors.GREEN}{Colors.BOLD}✓ All repositories updated successfully!{Colors.END}")
+        print(
+            f"{Colors.GREEN}{Colors.BOLD}✓ All repositories updated successfully "
+            f"({stamp}){Colors.END}"
+        )
 
     print(f"{Colors.CYAN}Operation complete.{Colors.END}")
     if json_file:

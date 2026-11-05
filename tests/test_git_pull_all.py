@@ -1,12 +1,14 @@
 """Tests for git_pull_all CLI helpers."""
 
 import json
+from datetime import datetime
 
 from git_pull_all import (
     Colors,
     compute_exit_code,
     format_file_change_line,
     format_repo_update_line,
+    format_run_timestamp,
     format_updated_summary,
     print_summary,
     record_branch_update,
@@ -132,6 +134,32 @@ def test_record_branch_update_default_uses_numstat():
     result = RepoResult(repo_path="/tmp/repo")
     assert record_branch_update(result, "main", "aaa", "bbb", git) is True
     assert result.changes_by_branch["main"] == [FileChange("a.py", 2, 1)]
+
+
+def test_format_run_timestamp_local_clock():
+    assert format_run_timestamp(datetime(2026, 11, 6, 10, 15)) == "10:15 AM, 06/11/26"
+    assert format_run_timestamp(datetime(2026, 11, 6, 22, 15)) == "10:15 PM, 06/11/26"
+    assert format_run_timestamp(datetime(2026, 1, 6, 9, 5)) == "09:05 AM, 06/01/26"
+    assert format_run_timestamp(datetime(2026, 11, 6, 0, 0)) == "12:00 AM, 06/11/26"
+    assert format_run_timestamp(datetime(2026, 11, 6, 12, 0)) == "12:00 PM, 06/11/26"
+
+
+def test_print_summary_outcomes_include_end_timestamp(capsys, monkeypatch):
+    monkeypatch.setattr(
+        "git_pull_all.format_run_timestamp",
+        lambda moment=None: "10:15 AM, 06/11/26",
+    )
+    stamp = "(10:15 AM, 06/11/26)"
+    success = [RepoResult(repo_path="/code/foo", updated=["main"])]
+    print_summary([], success, dry_run=False)
+    assert f"✓ All repositories updated successfully {stamp}" in capsys.readouterr().out
+
+    print_summary([], success, dry_run=True)
+    assert f"✓ Dry-run completed — no changes were made {stamp}" in capsys.readouterr().out
+
+    errors = [GitError("/code/foo", "main", "Pull", "failed")]
+    print_summary(errors, [RepoResult(repo_path="/code/foo", failed=["main"])], dry_run=False)
+    assert f"Encountered 1 error(s) {stamp}:" in capsys.readouterr().out
 
 
 def test_print_summary_json_mode(capsys):
